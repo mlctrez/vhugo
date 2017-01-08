@@ -7,6 +7,7 @@ import (
 	"github.com/nats-io/nats"
 	"github.com/satori/go.uuid"
 	"log"
+	"net"
 	"os"
 	"strings"
 	"time"
@@ -15,6 +16,8 @@ import (
 var natsServer *server.Server
 var encConn *nats.EncodedConn
 var boltDB *bolt.DB
+
+var listenIP = ""
 
 func logMessages() {
 	opts := nats.DefaultOptions
@@ -104,8 +107,25 @@ func UpdateDB(fn func(tx *bolt.Tx) (err error)) {
 	}
 }
 
+// Get preferred outbound ip of this machine
+func GetOutboundIP() string {
+	conn, err := net.Dial("udp", "8.8.8.8:80")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer conn.Close()
+
+	localAddr := conn.LocalAddr().String()
+	idx := strings.LastIndex(localAddr, ":")
+
+	return localAddr[0:idx]
+}
+
 func Run() {
 	log.SetOutput(os.Stdout)
+
+	listenIP = GetOutboundIP()
+	log.Println("listening on address", listenIP)
 
 	var err error
 
@@ -115,7 +135,7 @@ func Run() {
 	}
 	defer boltDB.Close()
 
-	s := NewApiServer()
+	s := NewApiServer(listenIP + ":8999")
 	go s.ListenAndServe()
 
 	deviceGroups, err := getDeviceGroups()
@@ -129,7 +149,7 @@ func Run() {
 
 		uuID := uuid.NewV1()
 		parts := strings.Split(uuID.String(), "-")
-		dg := &DeviceGroup{ServerIP: "10.0.0.63", ServerPort: 9000, GroupID: "groupOne", UUID: uuID.String(), UU: parts[len(parts)-1]}
+		dg := &DeviceGroup{ServerIP: listenIP, ServerPort: 9000, GroupID: "groupOne", UUID: uuID.String(), UU: parts[len(parts)-1]}
 
 		UpdateDB(func(tx *bolt.Tx) (e error) {
 			if val, err := json.Marshal(dg); err == nil {

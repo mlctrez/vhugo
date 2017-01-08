@@ -3,54 +3,62 @@ package vhugo
 import (
 	"encoding/json"
 	"github.com/boltdb/bolt"
-	"github.com/gocraft/web"
 	"github.com/pkg/errors"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
+	"strings"
 )
 
 type ApiServer struct {
-	router *web.Router
+	httpServer *http.Server
 }
 
 type WebContext struct{}
 
-var indexPage = `<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>vhugo</title>
-	<link href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
-  </head>
-  <body>
-    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.4/jquery.min.js"></script>
-    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous"></script>
-  </body>
-</html>
-`
-
-func (w *WebContext) Index(rw web.ResponseWriter, req *web.Request) {
-	rw.Write([]byte(indexPage))
+func Index(rw http.ResponseWriter, req *http.Request) {
+	rw.Header().Set("Content-Type", "text/html")
+	if indexBytes, err := ioutil.ReadFile("index.html"); err != nil {
+		rw.WriteHeader(500)
+		rw.Write([]byte(err.Error()))
+	} else {
+		rw.Write(indexBytes)
+	}
 }
 
-type HttpOperation struct {
+type BucketOp struct {
 	Bucket   string
 	Key      string
 	Body     io.ReadCloser
 	Response map[string]interface{}
 }
 
-func getPathParameter(req *web.Request, parameter string) string {
-	if result, ok := req.PathParams[parameter]; ok {
-		return result
+func getPathParameter(req *http.Request, parameter string) string {
+
+	pathParts := strings.Split(req.RequestURI, "/")
+	if len(pathParts) > 0 && pathParts[0] == "" {
+		pathParts = pathParts[1:]
+	}
+
+	if len(pathParts) > 1 && "buckets" != pathParts[0] {
+		return ""
+	}
+
+	switch parameter {
+	case "bucket_id":
+		if len(pathParts) > 1 {
+			return pathParts[1]
+		}
+	case "key_id":
+		if len(pathParts) > 2 {
+			return pathParts[2]
+		}
 	}
 	return ""
 }
 
-func (h *HttpOperation) Get(tx *bolt.Tx) error {
+func (h *BucketOp) Get(tx *bolt.Tx) error {
 	if h.Bucket != "" {
 		var bucket *bolt.Bucket
 		if bucket = tx.Bucket([]byte(h.Bucket)); bucket == nil {
@@ -82,7 +90,7 @@ func (h *HttpOperation) Get(tx *bolt.Tx) error {
 	return nil
 }
 
-func (h *HttpOperation) Post(tx *bolt.Tx) error {
+func (h *BucketOp) Post(tx *bolt.Tx) error {
 	if h.Bucket != "" {
 		var bucket *bolt.Bucket
 		var err error
@@ -112,7 +120,7 @@ func (h *HttpOperation) Post(tx *bolt.Tx) error {
 	return nil
 }
 
-func (h *HttpOperation) Delete(tx *bolt.Tx) error {
+func (h *BucketOp) Delete(tx *bolt.Tx) error {
 	if h.Bucket != "" {
 		var bucket *bolt.Bucket
 		if h.Key != "" {
@@ -126,15 +134,25 @@ func (h *HttpOperation) Delete(tx *bolt.Tx) error {
 	return nil
 }
 
-func (w *WebContext) Handle(rw web.ResponseWriter, req *web.Request) {
-	h := &HttpOperation{
+func (w *ApiServer) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+	if false {
+		log.Println("serving ", req.Method, req.RequestURI)
+	}
+	if "/" == req.RequestURI {
+		Index(rw, req)
+		return
+	}
+
+	if !strings.HasPrefix(req.RequestURI, "/buckets") {
+		return
+	}
+
+	h := &BucketOp{
 		Response: make(map[string]interface{}),
 		Bucket:   getPathParameter(req, "bucket_id"),
 		Key:      getPathParameter(req, "key_id"),
 		Body:     req.Body,
 	}
-
-	rw.Header().Add("Content-Type", "application/json")
 
 	var err error
 
@@ -150,26 +168,21 @@ func (w *WebContext) Handle(rw web.ResponseWriter, req *web.Request) {
 	if err != nil {
 		h.Response["error"] = err.Error()
 	}
+
+	rw.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(rw).Encode(h.Response)
 
 }
 
-func NewApiServer() *ApiServer {
-
-	router := web.New(WebContext{})
-	router.Get("/", (*WebContext).Index)
-	router.Get("/bucket", (*WebContext).Handle)
-	router.Get("/bucket/:bucket_id", (*WebContext).Handle)
-	router.Get("/bucket/:bucket_id/:key_id", (*WebContext).Handle)
-	router.Post("/bucket/:bucket_id", (*WebContext).Handle)
-	router.Post("/bucket/:bucket_id/:key_id", (*WebContext).Handle)
-	router.Delete("/bucket/:bucket_id", (*WebContext).Handle)
-	router.Delete("/bucket/:bucket_id/:key_id", (*WebContext).Handle)
-
-	apiServer := &ApiServer{router: router}
+func NewApiServer(addr string) *ApiServer {
+	apiServer := &ApiServer{}
+	apiServer.httpServer = &http.Server{
+		Handler: apiServer,
+		Addr:    addr,
+	}
 	return apiServer
 }
 
 func (a *ApiServer) ListenAndServe() {
-	http.ListenAndServe("10.0.0.63:8999", a.router)
+	a.httpServer.ListenAndServe()
 }
