@@ -2,13 +2,14 @@ package vhugo
 
 import (
 	"encoding/json"
-	"github.com/boltdb/bolt"
-	"github.com/pkg/errors"
+	"errors"
 	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"strings"
+
+	"github.com/boltdb/bolt"
 )
 
 type ApiServer struct {

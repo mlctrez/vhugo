@@ -2,15 +2,16 @@ package vhugo
 
 import (
 	"encoding/json"
-	"github.com/boltdb/bolt"
-	"github.com/nats-io/gnatsd/server"
-	"github.com/nats-io/nats"
-	"github.com/satori/go.uuid"
 	"log"
 	"net"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/boltdb/bolt"
+	"github.com/nats-io/gnatsd/server"
+	"github.com/nats-io/nats"
+	"github.com/satori/go.uuid"
 )
 
 var natsServer *server.Server
@@ -20,8 +21,9 @@ var boltDB *bolt.DB
 var listenIP = ""
 
 func logMessages() {
-	opts := nats.DefaultOptions
-	opts.Servers = []string{"nats://" + natsServer.GetListenEndpoint()}
+	opts := nats.GetDefaultOptions()
+
+	opts.Servers = []string{"nats://" + natsServer.Addr().String()}
 	nc, err := opts.Connect()
 	if err != nil {
 		panic(err)
@@ -42,6 +44,8 @@ func startNats() {
 
 	// TODO : make server and port configurable
 	natsOptions := &server.Options{}
+	natsOptions.Port = -1
+	natsOptions.Host = GetOutboundIP()
 
 	natsServer = server.New(natsOptions)
 
@@ -51,13 +55,18 @@ func startNats() {
 	end := time.Now().Add(10 * time.Second)
 	for time.Now().Before(end) {
 
-		addr := natsServer.GetListenEndpoint()
+		saddr := natsServer.Addr()
+		if saddr == nil {
+			time.Sleep(50 * time.Millisecond)
+			continue
+		}
+		addr := saddr.String()
 		if addr == "" {
 			time.Sleep(50 * time.Millisecond)
 			continue
 		}
 
-		opts := nats.DefaultOptions
+		opts := nats.GetDefaultOptions()
 		opts.Servers = []string{"nats://" + addr}
 
 		conn, err := opts.Connect()
