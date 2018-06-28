@@ -20,7 +20,10 @@ import (
 	"github.com/mlctrez/vhugo/webapp"
 	"github.com/mlctrez/web"
 	"github.com/nats-io/gnatsd/server"
+	"os/exec"
 )
+
+const HDHR_PLIST = "/Library/LaunchDaemons/com.silicondust.dvr.plist"
 
 func main() {
 
@@ -32,6 +35,17 @@ func main() {
 	if *ip == "" {
 		flag.Usage()
 		log.Fatal("ip parameter must be provided")
+	}
+
+	// stop silicon dust service on mac which hogs port 1900
+	if _, err := os.Stat(HDHR_PLIST); err == nil {
+		cmd := exec.Command("/usr/bin/sudo", "launchctl", "unload", HDHR_PLIST)
+		if _, err := cmd.CombinedOutput(); err != nil {
+			panic(err)
+		}
+		// restart with
+		// sudo launchctl load /Library/LaunchDaemons/com.silicondust.dvr.plist
+		// sudo launchctl start /Library/LaunchDaemons/com.silicondust.dvr.plist
 	}
 
 	webAddr := fmt.Sprintf("%s:%d", *ip, *port)
