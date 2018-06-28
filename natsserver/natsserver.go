@@ -86,11 +86,12 @@ func (n *NatsServer) Start(ctx context.Context) error {
 		return err
 	}
 
-	mContext, _ := context.WithCancel(ctx)
+	mContext, cancel := context.WithCancel(ctx)
 	go func() {
 		<-mContext.Done()
 		n.logger.Println("Context.Done()")
 		n.Shutdown()
+		cancel()
 	}()
 
 	return nil

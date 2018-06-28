@@ -128,7 +128,8 @@ func listenUPnP(ns natsserver.NatsPublisher, logger *hlog.HLog, ctx context.Cont
 
 	logger.Println("setting up uPnP listener")
 
-	listenContext, _ := context.WithCancel(ctx)
+	listenContext, cancel := context.WithCancel(ctx)
+	defer cancel()
 
 	var err error
 	var addr *net.UDPAddr
