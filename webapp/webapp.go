@@ -15,6 +15,7 @@ import (
 	"github.com/mlctrez/vhugo/devicedb"
 	"github.com/mlctrez/vhugo/hlog"
 	"github.com/mlctrez/vhugo/natsserver"
+	"github.com/mlctrez/vhugo/tlsconfig"
 	"github.com/mlctrez/web"
 	"github.com/mlctrez/zipbackpack/httpfs"
 )
@@ -27,18 +28,20 @@ type WebApp struct {
 	DB            *devicedb.DeviceDB
 	Nats          *natsserver.NatsServer
 	upgrader      websocket.Upgrader
+	tlsHost       string
 }
 
 type WebContext struct {
 	App *WebApp
 }
 
-func New(db *devicedb.DeviceDB, nats *natsserver.NatsServer, logger *log.Logger) *WebApp {
+func New(db *devicedb.DeviceDB, nats *natsserver.NatsServer, logger *log.Logger, tlsHostName string) *WebApp {
 	return &WebApp{
 		DB:       db,
 		Nats:     nats,
 		logger:   hlog.New(logger, "WebApp"),
 		upgrader: websocket.Upgrader{ReadBufferSize: 1024, WriteBufferSize: 1024},
+		tlsHost:  tlsHostName,
 	}
 }
 
@@ -194,11 +197,12 @@ func (w *WebApp) Run(addr string, ctx context.Context) {
 
 	var config *tls.Config
 	var err error
-	//config, err = tlsconfig.TlsConfig("crawford.localnet")
-	//if err != nil {
-	//	// TODO: return this error to caller
-	//	panic(err)
-	//}
+	if w.tlsHost != "" {
+		config, err = tlsconfig.TlsConfig(w.tlsHost)
+		if err != nil {
+			return
+		}
+	}
 	server := &http.Server{TLSConfig: config, Addr: addr}
 
 	router := web.New(WebContext{})

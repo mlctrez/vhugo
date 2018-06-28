@@ -29,6 +29,7 @@ func main() {
 
 	ip := flag.String("ip", "", "the ip to listen on (required)")
 	port := flag.Int("port", 19200, "the starting port which is also the web interface")
+	tlsHostName := flag.String("tlshost", "", "the tls hostname")
 	db := flag.String("ddb", "device.db", "device db path")
 	flag.Parse()
 
@@ -85,7 +86,7 @@ func main() {
 	}
 	defer deviceDB.Close()
 
-	go webapp.New(deviceDB, ns, logger).Run(webAddr, mainContext)
+	go webapp.New(deviceDB, ns, logger, *tlsHostName).Run(webAddr, mainContext)
 
 	// TODO: configure the max number of device groups
 	for i := apiPort; i < apiPort+4; i++ {
