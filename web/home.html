@@ -1,0 +1,27 @@
+<div>
+    <div layout="column">
+        <div layout="column" layout-align="center center">
+            <h1>vHuGo</h1>
+        </div>
+        <div layout="row" layout-align="center center" data-ng-repeat="l in lights">
+            <div flex="10">
+                <h4>{{l.name}}</h4>
+            </div>
+            <div flex="20">
+                <md-slider-container>
+                    <md-switch ng-change="changeState(l)" ng-model="l.on" aria-label="{{l.name}} on off"></md-switch>
+                    <md-slider ng-change="changeBrightness(l)" ng-model="l.brightness" min="0" max="255"
+                               aria-label="{{l.name}} brightness" id="{{l.light_id}}_brightness"></md-slider>
+                </md-slider-container>
+            </div>
+            <div flex="5">
+                <md-button class="md-icon-button" aria-label="delete" ng-click="deleteLight($event, l)">
+                    <i class="fa fa-trash fa-lg" aria-hidden="true"></i>
+                </md-button>
+            </div>
+        </div>
+        <div layout="column" layout-align="center center" flex="100">
+            <md-button class="md-raised md-primary" ng-click="addLight($event)">Add Light</md-button>
+        </div>
+    </div>
+</div>
