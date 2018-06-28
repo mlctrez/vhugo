@@ -15,3 +15,9 @@ cd ..
 cat build/web.zip >> build/vhugo
 
 zip -q -A build/vhugo
+
+mv build/vhugo vhugo
+
+rm -rf build
+
+./vhugo -ip 0.0.0.0
