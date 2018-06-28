@@ -1,4 +1,4 @@
-package vhugo
+package tmpl
 
 import (
 	"text/template"
@@ -14,7 +14,7 @@ ST: urn:schemas-upnp-org:device:basic:1
 USN: uuid:Socket-1_0-{{.UU}}::urn:Belkin:device:**
 
 `
-var disoveryResponseTemplate = template.Must(template.New("discoveryResponse").Parse(discoveryResponseText))
+var DisoveryResponseTemplate = template.Must(template.New("discoveryResponse").Parse(discoveryResponseText))
 
 var settingsText = `<?xml version="1.0"?><root xmlns="urn:schemas-upnp-org:device-1-0">
 <specVersion><major>1</major><minor>0</minor></specVersion>
@@ -33,4 +33,4 @@ var settingsText = `<?xml version="1.0"?><root xmlns="urn:schemas-upnp-org:devic
 </device>
 </root>
 `
-var settingsTemplate = template.Must(template.New("settings").Parse(settingsText))
+var SettingsTemplate = template.Must(template.New("settings").Parse(settingsText))

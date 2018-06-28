@@ -1,2 +1,4 @@
-.idea/
+.idea
 device.db
+deploy.sh
+build
