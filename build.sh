@@ -4,7 +4,7 @@ rm -rf build
 
 mkdir build
 
-vgo build -o build/vhugo cli/cli.go
+go build -o build/vhugo cli/cli.go
 
 cd web
 
@@ -20,4 +20,4 @@ mv build/vhugo vhugo
 
 rm -rf build
 
-./vhugo -ip 0.0.0.0
+./vhugo -ip x.x.x.x
