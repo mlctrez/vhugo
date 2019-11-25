@@ -12,3 +12,5 @@ require (
 	golang.org/x/sys v0.0.0-20180627142611-7138fd3d9dc8
 	gopkg.in/satori/go.uuid.v1 v1.2.0
 )
+
+go 1.13
