@@ -58,7 +58,7 @@ vhugo.controller('HomeController', function ($scope, $http, $mdDialog, $websocke
     new_uri += "//" + loc.host;
     new_uri += "/messages";
 
-    $scope.ws = $websocket(new_uri, {"reconnectIfNotNormalClose":true});
+    $scope.ws = $websocket(new_uri, {"reconnectIfNotNormalClose": true});
 
     $scope.ws.onOpen(function (message) {
         console.log("websocket onOpen " + message);

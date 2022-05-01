@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"os/exec"
 	"os/signal"
 	"runtime"
 	"strings"
@@ -20,7 +21,6 @@ import (
 	"github.com/mlctrez/vhugo/webapp"
 	"github.com/mlctrez/web"
 	"github.com/nats-io/gnatsd/server"
-	"os/exec"
 )
 
 const HDHR_PLIST = "/Library/LaunchDaemons/com.silicondust.dvr.plist"
