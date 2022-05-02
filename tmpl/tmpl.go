@@ -7,7 +7,7 @@ import (
 var discoveryResponseText = `HTTP/1.1 200 OK
 CACHE-CONTROL: max-age=86400
 EXT:
-LOCATION: http://{{.ServerIP}}:{{.ServerPort}}/upnp/{{.GroupID}}/setup.xml
+LOCATION: http://{{.ServerIP}}:{{.ServerPort}}/api/upnp/{{.GroupID}}/setup.xml
 OPT: "http://schemas.upnp.org/upnp/1/0/"; ns=01
 01-NLS: {{.UUID}}
 ST: urn:schemas-upnp-org:device:basic:1

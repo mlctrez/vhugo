@@ -7,17 +7,17 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/mlctrez/vhugo/devicedb"
 	"github.com/mlctrez/vhugo/hlog"
 	"github.com/mlctrez/vhugo/natsserver"
+	"github.com/mlctrez/vhugo/static"
 	"github.com/mlctrez/vhugo/tlsconfig"
-	"github.com/mlctrez/web"
-	"github.com/mlctrez/zipbackpack/httpfs"
+	web "github.com/mlctrez/web"
 )
 
 type WebApp struct {
@@ -212,13 +212,9 @@ func (w *WebApp) Run(addr string, ctx context.Context) {
 	})
 	router.Middleware(w.logger.LoggerMiddleware)
 
-	//staticMiddlware := web.StaticMiddleware("web", web.StaticOption{IndexFile: "index.html"})
-	//staticMiddlware := web.StaticMiddlewareFromDir(dir, web.StaticOption{IndexFile: "index.html"})
-
 	router.Middleware(Static)
 
-	router.Get("/messages", (*WebContext).Messages)
-
+	router.Get("/api/messages", (*WebContext).Messages)
 	router.Get("/api/lights", (*WebContext).Lights)
 	router.Post("/api/lights", (*WebContext).AddLight)
 	router.Post("/api/lights/:groupID/:lightID", (*WebContext).ChangeState)
@@ -248,35 +244,9 @@ func (w *WebApp) Run(addr string, ctx context.Context) {
 }
 
 func Static(w web.ResponseWriter, req *web.Request, next web.NextMiddlewareFunc) {
-
-	var webapp string
-
-	if wd, err := os.Stat("web"); err == nil {
-		if wd.IsDir() {
-			webapp = wd.Name()
-		}
-	}
-
-	dir, err := httpfs.NewStaticFileSystem(webapp)
-
-	if err != nil {
-		panic(err)
-	}
-	if req.URL.Path == "/" {
-		req.URL.Path = "/index.html"
-	}
-
-	f, err := dir.Open(req.URL.Path)
-	if err != nil {
+	if strings.HasPrefix(req.RequestURI, "/api") {
 		next(w, req)
 		return
 	}
-	defer f.Close()
-
-	fi, err := f.Stat()
-	if err != nil {
-		next(w, req)
-		return
-	}
-	http.ServeContent(w, req.Request, req.URL.Path, fi.ModTime(), f)
+	http.FileServer(http.FS(static.Files)).ServeHTTP(w, req.Request)
 }

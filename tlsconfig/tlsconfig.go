@@ -13,7 +13,7 @@ import (
 func TlsConfig(hostname string) (config *tls.Config, err error) {
 	client := &http.Client{}
 
-	resp, err := client.Get("http://zuul:9999/newcert/" + hostname)
+	resp, err := client.Get("http://optiplex:9999/newcert/" + hostname)
 	if err != nil {
 		return nil, err
 	}

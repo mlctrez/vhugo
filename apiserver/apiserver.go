@@ -155,7 +155,7 @@ func (a *ApiServer) Run(ctx context.Context) {
 		next(rw, req)
 	})
 
-	router.Get("/upnp/:groupID/setup.xml", (*ApiContext).Setup)
+	router.Get("/api/upnp/:groupID/setup.xml", (*ApiContext).Setup)
 	router.Get("/api/:userID/lights", (*ApiContext).Lights)
 	router.Get("/api/:userID/lights/:lightID", (*ApiContext).Light)
 	router.Put("/api/:userID/lights/:lightID/state", (*ApiContext).LightState)
@@ -176,7 +176,7 @@ func (a *ApiServer) Run(ctx context.Context) {
 	}()
 	<-apiServerContext.Done()
 	a.logger.Println("apiServerContext.Done()")
-	server.Shutdown(nil)
+	server.Shutdown(ctx)
 	return
 }
 

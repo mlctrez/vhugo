@@ -2,18 +2,16 @@ package main
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"log"
 	"net"
 	"os"
-	"os/exec"
-	"os/signal"
-	"runtime"
+	"strconv"
 	"strings"
-	"syscall"
 	"time"
 
+	"github.com/kardianos/service"
+	"github.com/mlctrez/servicego"
 	"github.com/mlctrez/vhugo/apiserver"
 	"github.com/mlctrez/vhugo/devicedb"
 	"github.com/mlctrez/vhugo/hlog"
@@ -23,70 +21,76 @@ import (
 	"github.com/nats-io/gnatsd/server"
 )
 
-const HDHR_PLIST = "/Library/LaunchDaemons/com.silicondust.dvr.plist"
+type serv struct {
+	servicego.Defaults
+	cancel func()
+	ctx    context.Context
+}
+
+func (sv *serv) Start(s service.Service) error {
+	sv.ctx, sv.cancel = context.WithCancel(context.Background())
+
+	port := 19200
+
+	if providedPort, err := strconv.Atoi(os.Getenv("PORT")); err == nil {
+		port = providedPort
+	}
+
+	ip := os.Getenv("IP")
+	if ip == "" {
+		return fmt.Errorf("IP environment variable not set")
+	}
+
+	tlsHostName := os.Getenv("TLS_HOST")
+
+	return Run(ip, port, tlsHostName, sv.ctx)
+}
+
+func (sv *serv) Stop(s service.Service) error {
+	sv.cancel()
+	time.Sleep(500 * time.Millisecond)
+	<-sv.ctx.Done()
+	return nil
+}
 
 func main() {
+	servicego.Run(&serv{})
+}
 
-	ip := flag.String("ip", "", "the ip to listen on (required)")
-	port := flag.Int("port", 19200, "the starting port which is also the web interface")
-	tlsHostName := flag.String("tlshost", "", "the tls hostname")
-	db := flag.String("ddb", "device.db", "device db path")
-	flag.Parse()
+func Run(ip string, port int, tlsHostName string, mainContext context.Context) error {
 
-	if *ip == "" {
-		flag.Usage()
-		log.Fatal("ip parameter must be provided")
-	}
+	natsPort := port + 1
+	apiPort := port + 2
 
-	// stop silicon dust service on mac which hogs port 1900
-	if _, err := os.Stat(HDHR_PLIST); err == nil {
-		cmd := exec.Command("/usr/bin/sudo", "launchctl", "unload", HDHR_PLIST)
-		if _, err := cmd.CombinedOutput(); err != nil {
-			panic(err)
-		}
-		// restart with
-		// sudo launchctl load /Library/LaunchDaemons/com.silicondust.dvr.plist
-		// sudo launchctl start /Library/LaunchDaemons/com.silicondust.dvr.plist
-	}
-
-	webAddr := fmt.Sprintf("%s:%d", *ip, *port)
-	fmt.Println(webAddr)
-	natsPort := *port + 1
-	apiPort := *port + 2
-
-	logger := log.New(os.Stdout, "", log.LstdFlags|log.Lmicroseconds)
+	logger := log.New(os.Stdout, "", 0)
 	web.Logger = logger
 
 	ml := hlog.New(logger, "Main")
 
-	defer func() {
-		ml.Println("exiting with ", runtime.NumGoroutine(), "go routines")
-	}()
-
-	opts := &server.Options{Host: *ip, Port: natsPort, NoSigs: true}
-
-	mainContext, cancel := context.WithCancel(context.Background())
-	defer func() {
-		ml.Println("cancel()")
-		cancel()
-		time.Sleep(250 * time.Millisecond)
-		ml.Println("cancel() complete")
-	}()
+	opts := &server.Options{Host: ip, Port: natsPort, NoSigs: true}
 
 	ns := natsserver.New(opts, logger)
 	startError := ns.Start(mainContext)
 	if startError != nil {
-		ml.Println("error starting nats server", startError)
-		return
+		return startError
 	}
 
-	deviceDB, err := devicedb.New(*db, logger)
+	deviceDB, err := devicedb.New("device.db", logger)
 	if err != nil {
-		panic(err)
+		return err
 	}
-	defer deviceDB.Close()
+	go func() {
+		<-mainContext.Done()
+		dbErr := deviceDB.Close()
+		if dbErr != nil {
+			logger.Println(dbErr)
+		}
+	}()
 
-	go webapp.New(deviceDB, ns, logger, *tlsHostName).Run(webAddr, mainContext)
+	webAddr := fmt.Sprintf("%s:%d", ip, port)
+
+	app := webapp.New(deviceDB, ns, logger, tlsHostName)
+	go app.Run(webAddr, mainContext)
 
 	// TODO: configure the max number of device groups
 	for i := apiPort; i < apiPort+4; i++ {
@@ -95,21 +99,20 @@ func main() {
 		ml.Println("checking initial device group", groupID)
 		if _, err := deviceDB.GetDeviceGroup(groupID); err != nil {
 			group := devicedb.NewDeviceGroup(groupID)
-			group.ServerIP = *ip
+			group.ServerIP = ip
 			group.ServerPort = i
 			ml.Println("adding device group", group)
 			err := deviceDB.AddDeviceGroup(group)
 			if err != nil {
 				ml.Println("error creating device group", err)
-				return
+				return nil
 			}
 		}
 	}
 
 	deviceGroups, err := deviceDB.GetDeviceGroups()
 	if err != nil {
-		log.Println("deviceDB.GetDeviceGroups", err)
-		return
+		return err
 	}
 	for _, dg := range deviceGroups {
 		deviceGroup := dg
@@ -117,12 +120,7 @@ func main() {
 		go apiserver.New(deviceDB, deviceGroup, ns, logger).Run(mainContext)
 	}
 	go listenUPnP(ns, hlog.New(logger, "ListenUPnP"), mainContext)
-
-	signalChan := make(chan os.Signal, 1)
-	signal.Reset()
-	signal.Notify(signalChan, syscall.SIGKILL, syscall.SIGINT, syscall.SIGQUIT)
-	ml.Println("listening for signals")
-	ml.Println("signal:", <-signalChan)
+	return nil
 }
 
 func listenUPnP(ns natsserver.NatsPublisher, logger *hlog.HLog, ctx context.Context) {

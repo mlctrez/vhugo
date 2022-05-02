@@ -56,7 +56,7 @@ vhugo.controller('HomeController', function ($scope, $http, $mdDialog, $websocke
         new_uri = "ws:";
     }
     new_uri += "//" + loc.host;
-    new_uri += "/messages";
+    new_uri += "/api/messages";
 
     $scope.ws = $websocket(new_uri, {"reconnectIfNotNormalClose": true});
 
